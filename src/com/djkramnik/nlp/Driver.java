@@ -9,6 +9,7 @@ public class Driver {
 	
 	public static String parseMode = ""; 
 	public static ArrayList<String> entityAttributes = new ArrayList<String>();
+	public static ArrayList<String> eventAttributes = new ArrayList<String>();
 	public static ArrayList<DKEntity> dkEntities = new ArrayList<DKEntity>();
 	public static ArrayList<DKEvent> dkEvents = new ArrayList<DKEvent>();
 	public static DKEntity cachedEntity = null;
@@ -40,8 +41,9 @@ public class Driver {
 		//sentence = "Barney is a kindly old man.";
 		//sentence = "The hungry spoilt child was a monster and ate the cake with his hands.";
 		//sentence = "The man with the golden gun fired at us";
-		//sentence = "My girlfriend slept peacefully.";
-		sentence = "She was my sister.";
+		sentence = "My girlfriend peacefully slept.";
+		//sentence = "She was my sister.";
+		//sentence = "A crazy thing happened to me last night and I need to get this off my chest.";
 		
 		tokens = ParseUtil.extractTokens(sentence);
 		twoGrams = ParseUtil.extract2Grams(sentence);
@@ -171,6 +173,11 @@ public class Driver {
 				case "JJS":
 					cacheEntityAttribute(t.token);
 					break;
+				case "RB":
+				case "RBR":
+				case "RBS":
+					cacheEventAttribute(t.token);
+					break;
 				case "VB":
 				case "VBD":
 				case "VBZ":
@@ -184,8 +191,7 @@ public class Driver {
 						havingFlag = true;
 					} else {
 						if (dkEntities.size() > 0) {
-							DKEvent dkEvent = new DKEvent(t, dkEntities.get(dkEntities.size() - 1));
-							dkEvents.add(dkEvent);	
+							createEvent(t);
 							eventFlag = true;
 						}
 						if(linkingFlag){
@@ -214,10 +220,20 @@ public class Driver {
 		entityAttributes.clear();
 	}
 	
+	public static void createEvent (DKToken t) {
+		String [] adverbs = new String[eventAttributes.size()];
+		eventAttributes.toArray(adverbs);
+		DKEvent dkEvent = new DKEvent(t, dkEntities.get(dkEntities.size() - 1), adverbs);
+		dkEvents.add(dkEvent);	
+		eventAttributes.clear();
+	}
+	
 	public static void cacheEntityAttribute(String attribute){
 		entityAttributes.add(attribute);
 	}
-
+	public static void cacheEventAttribute(String attribute){
+		eventAttributes.add(attribute);
+	}
 	public static String readFile(String filePath) throws IOException{
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
 		StringBuilder sb; 

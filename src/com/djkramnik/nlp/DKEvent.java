@@ -6,6 +6,7 @@ public class DKEvent {
 	
 	public ArrayList<DKToken> auxiliaries = new ArrayList<DKToken>();
 	public ArrayList<DKPrepPhrase> prepPhrases = new ArrayList<DKPrepPhrase>();
+	public ArrayList<String> attributes = new ArrayList<String>();
 	public DKToken token = null;
 	public String identifier = null; 
 	public DKEntity actor = null; 
@@ -16,8 +17,14 @@ public class DKEvent {
 		this.actor = actor;
 		this.identifier = token.token;
 	}
+	public DKEvent (DKToken token, DKEntity actor, String [] attributes) {
+		this(token,actor);
+		if(attributes != null){
+			this.attributes.addAll(Arrays.asList(attributes));
+		}
+	}
 	public String toString(){
-		String s = actor.identifier + " " + identifier;
+		String s = actor.identifier + " " + attributes.toString() + " " + identifier;
 		DKPrepPhrase p;
 		if(actedOn != null){
 			s += " " + actedOn.identifier;
