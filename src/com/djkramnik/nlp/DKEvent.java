@@ -12,6 +12,7 @@ public class DKEvent {
 	public DKEntity actor = null; 
 	public DKEntity actedOn = null;
 	
+	
 	public DKEvent (DKToken token, DKEntity actor) {
 		this.token = token;
 		this.actor = actor;
@@ -23,6 +24,10 @@ public class DKEvent {
 			this.attributes.addAll(Arrays.asList(attributes));
 		}
 	}
+	public DKEvent cheapCopy (DKToken token) {
+		return new DKEvent(token, this.actor);
+	}
+	
 	public String toString(){
 		String s = actor.identifier + " " + attributes.toString() + " " + identifier;
 		DKPrepPhrase p;

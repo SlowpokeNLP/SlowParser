@@ -12,9 +12,12 @@ public class Driver {
 	public static ArrayList<String> eventAttributes = new ArrayList<String>();
 	public static ArrayList<DKEntity> dkEntities = new ArrayList<DKEntity>();
 	public static ArrayList<DKEvent> dkEvents = new ArrayList<DKEvent>();
+	public static ArrayList<DKGroup> dkGroups = new ArrayList<DKGroup>();
+	public static ArrayList<DKPhrase> dkPhrases = new ArrayList<DKPhrase>();
 	public static DKEntity cachedEntity = null;
 	public static Boolean linkingFlag = false;
 	public static int linkedIndex = 0;
+	public static Boolean andFlag = false;
 	public static Boolean havingFlag = false;
 	public static Boolean eventFlag = false;
 	public static Boolean prepositionFlag = false;
@@ -41,9 +44,10 @@ public class Driver {
 		//sentence = "Barney is a kindly old man.";
 		//sentence = "The hungry spoilt child was a monster and ate the cake with his hands.";
 		//sentence = "The man with the golden gun fired at us";
-		sentence = "My girlfriend peacefully slept.";
+		//sentence = "My girlfriend peacefully slept.";
 		//sentence = "She was my sister.";
 		//sentence = "A crazy thing happened to me last night and I need to get this off my chest.";
+		sentence = "Arash and Poya saw the mysterious light in the sky and ran in terror.";
 		
 		tokens = ParseUtil.extractTokens(sentence);
 		twoGrams = ParseUtil.extract2Grams(sentence);
@@ -100,6 +104,11 @@ public class Driver {
 		//so there are many different combinations possible 
 		for(DKToken t : dkTokens){
 			switch(t.tag){
+				case "CC":
+					if(t.token.toLowerCase().equals("and")) {
+						andFlag = true;
+					}
+					break;
 				case "PRP$":
 					havingFlag = true;
 					createEntity(t.token);
@@ -142,11 +151,21 @@ public class Driver {
 							}
 						} 						
 					} else if (!linkingFlag) {					
-						createEntity(t.token);
+						
+						if (andFlag) {
+							andFlag = false;
+							if (!dkEntities.isEmpty()) {
+								dkEntities.get(dkEntities.size() - 1).members.add(createStandAloneEntity(t.token));
+							} else {
+								createEntity(t.token);
+							}
+						} else {
+							createEntity(t.token);	
+						}
 						//cachedEntity = dkEntities.get(dkEntities.size() - 1);
 						if (eventFlag) {
 							eventFlag = false;
-							dkEvents.get(dkEvents.size() - 1).actedOn = cachedEntity; 
+							dkEvents.get(dkEvents.size() - 1).actedOn = dkEntities.get(dkEntities.size() - 1); 
 						}
 					} else {
 						linkingFlag = false;
@@ -166,6 +185,7 @@ public class Driver {
 							dkEntities.get(dkEntities.size() - 2).addBelongs(dkEntities.get(dkEntities.size() - 1));
 						}
 					}
+
 					break;
 				case "CD":
 				case "JJ":
@@ -191,8 +211,16 @@ public class Driver {
 						havingFlag = true;
 					} else {
 						if (dkEntities.size() > 0) {
+							
 							createEvent(t);
+							if (andFlag) {
+								andFlag = false;
+								if (dkEvents.size() > 1) {
+									dkEvents.get(dkEvents.size() - 1).actor = dkEvents.get(dkEvents.size() - 2).actor;
+								}
+							}
 							eventFlag = true;
+							
 						}
 						if(linkingFlag){
 							linkingFlag = false;
