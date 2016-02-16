@@ -24,12 +24,27 @@ public class DKEntity {
 	public void addBelongs(DKEntity entity){
 		this.belongs.add(entity);
 	}
+	public void addAttribute (String attribute) {
+		attributes.add(attribute);
+	}
 	public String toString(){
-		String associates = "";
+		String associates = "", 
+			s = "",
+			qualities = "";
+		DKPrepPhrase p;
 		for (DKEntity m : members) {
 			associates += " and " + m.identifier;
 		}
-		return identifier + associates;
+		if (prepPhrases.size() > 0) {
+			p = prepPhrases.get(0);
+			s += " " + MiscUtil.prepositions.get(p.preposition) + "? " + p.toString();
+		}
+		if (attributes.size() > 0) {
+			for (String a : attributes){
+				qualities += (a + ", ");
+			}
+		}
+		return qualities + identifier + associates + s;
 	}
 	public Boolean isGroup (){
 		return !this.members.isEmpty();

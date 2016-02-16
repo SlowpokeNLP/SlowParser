@@ -10,18 +10,22 @@ public class Driver {
 	public static String parseMode = ""; 
 	public static ArrayList<String> entityAttributes = new ArrayList<String>();
 	public static ArrayList<String> eventAttributes = new ArrayList<String>();
+	public static ArrayList<DKToken> dkTokens = new ArrayList<DKToken>(); 
 	public static ArrayList<DKEntity> dkEntities = new ArrayList<DKEntity>();
 	public static ArrayList<DKEvent> dkEvents = new ArrayList<DKEvent>();
 	public static ArrayList<DKGroup> dkGroups = new ArrayList<DKGroup>();
 	public static ArrayList<DKPhrase> dkPhrases = new ArrayList<DKPhrase>();
 	public static DKEntity cachedEntity = null;
 	public static Boolean linkingFlag = false;
-	public static int linkedIndex = 0;
+	public static Boolean phraseEnded = true;
 	public static Boolean andFlag = false;
+	public static Boolean connectedPhrases = false;
 	public static Boolean havingFlag = false;
 	public static Boolean eventFlag = false;
 	public static Boolean prepositionFlag = false;
+	public static String precedingAnd = "";
 	public static String lastPreposition = "";
+	public static int linkedIndex = 0;
 	
 	public static void main(String[] args) throws Exception {
 		/*
@@ -37,17 +41,16 @@ public class Driver {
 		NERTagger classifier = new NERTagger("classifiers/english.all.3class.distsim.crf.ser.gz");	
 		
 		ArrayList<String> oneGramEntities, twoGramEntities, posTags; 
-		ArrayList<DKToken> dkTokens = new ArrayList<DKToken>(); 
 		
-		//sentence = "A crazy thing happened to your Montreal Canadiens last night and they need some counselling.";
-		//sentence = "A crazy thing happened to Obama in downtown Washington last night.";
-		//sentence = "Barney is a kindly old man.";
-		//sentence = "The hungry spoilt child was a monster and ate the cake with his hands.";
-		//sentence = "The man with the golden gun fired at us";
-		//sentence = "My girlfriend peacefully slept.";
-		//sentence = "She was my sister.";
-		//sentence = "A crazy thing happened to me last night and I need to get this off my chest.";
-		sentence = "Arash and Poya saw the mysterious light in the sky and ran in terror.";
+		//sentence = "The bowl of stew is hot";
+		//sentence = "The bowl on the stove is hot";
+		//sentence = "The bowl of stew is hot and delicious";
+		//sentence = "My dog has too many fleas and too much hair";
+		//sentence = "Arash and Poya ran from the mysterious light.";
+		//sentence = "David promised to fix the header and Benson agreed to program the backend.";
+		//sentence = "Serina should have been driving more carefully.";
+		//sentence = "David promised to fix the header and improve error handling";
+		sentence = "While I am at work my dog sleeps on the bed and my cat jumps in the bathtub.";
 		
 		tokens = ParseUtil.extractTokens(sentence);
 		twoGrams = ParseUtil.extract2Grams(sentence);
@@ -80,19 +83,63 @@ public class Driver {
 			dkTokens.add(new DKToken(dkTokens.size(), tokens[tokens.length - 1], posTags.get(tokens.length - 1)));
 		}
 		
-		for(DKToken t : dkTokens){
+		altParse();
+		
+		/*for(DKToken t : dkTokens){
 			System.out.println(t);
 		}
-		
+				
 		MiscUtil.loadPrepositions();
+		
 		slowParse(dkTokens);
 		
 		System.out.println("\n*********************");
 		for(DKEntity e : dkEntities){
 			System.out.println(e);
 		}
+		System.out.println("\n*********************");
 		for(DKEvent e : dkEvents){
 			System.out.println(e);
+		}*/
+	}
+		
+	//for the time being only performing phrase logic here
+	public static void altParse() {
+		DKToken t;
+		for(int i= 0; i < dkTokens.size(); i++) {
+			t = dkTokens.get(i);
+			switch (t.tag){
+				
+				case "DT":
+
+				case "PRP":
+				case "PRP$":
+				case "NN":
+				case "NNS":
+				case "NNP":
+				case "NNPS":
+					if (getCurrentPhraseType().equals("NP")) {
+						continueCurrentPhrase(t);
+					} else {
+						startPhrase("NP", t);
+					}
+					break;
+				case "VBG":
+					break;
+				case "CC":
+				case "JJ":
+				case "JJR":
+				case "JJS":
+					if (getCurrentPhraseType().equals("NP")) {
+						continueCurrentPhrase(t);
+					} else if (findNextIndex(i, "NP") < dkTokens.size()) {
+						startPhrase("NP", t);
+					}
+					break;
+				default:
+					
+					break;
+			}
 		}
 		
 	}
@@ -107,6 +154,17 @@ public class Driver {
 				case "CC":
 					if(t.token.toLowerCase().equals("and")) {
 						andFlag = true;
+						if (getPrevTag(t).indexOf("JJ") != -1) {
+							precedingAnd = "attribute";
+						} else if (dkEvents.size() > 0) {
+							precedingAnd = "event";
+						} else if (dkEntities.size() > 0) {
+							precedingAnd = "entity";
+						} else {
+							//if we've encountered no entity or event prior the conjunction does nothing
+							andFlag = false;
+							precedingAnd = "";
+						}
 					}
 					break;
 				case "PRP$":
@@ -114,11 +172,15 @@ public class Driver {
 					createEntity(t.token);
 				case "DT":
 					break;
+				case "TO":
+					//infinitive phrase 
+					break;
 				case "IN":
 					if(MiscUtil.isPreposition(t.token)) {
 						prepositionFlag = true;
 						lastPreposition = t.token;
 					}
+					linkingFlag = false;
 					break;
 				case "PERSON":
 				case "ORGANIZATION":
@@ -130,6 +192,7 @@ public class Driver {
 				case "VBG":
 				case "PRP":
 					if (prepositionFlag) {
+						prepositionFlag = false;
 						//determine prep attachment at this point using IRL or some hocus pocus 
 						//if its a noun attachment basically the object here is an adjectival modifier 
 						//if it is verb attachment take the question it is answering (where/why/when/how) and together with the object attach to the last event 
@@ -154,11 +217,29 @@ public class Driver {
 						
 						if (andFlag) {
 							andFlag = false;
-							if (!dkEntities.isEmpty()) {
-								dkEntities.get(dkEntities.size() - 1).members.add(createStandAloneEntity(t.token));
+							
+							if (precedingAnd.equals("entity")) {
+								if (!dkEntities.isEmpty()) {
+									createEntityGroup(t);
+								} else {
+									createEntity(t.token);
+								}
 							} else {
-								createEntity(t.token);
+								int indexOfVerb;
+								//look for verb and make sure comes before a conjunction 
+								if ((indexOfVerb = findNextIndex(t.index, "VB")) < dkTokens.size()) {
+									if (indexOfVerb < findNextIndex(t.index, "CC")) {
+										createEntity(t.token);
+										connectedPhrases = true;
+										eventFlag = false;
+									} else {
+										createEntityGroup(t);
+									}
+								} else {
+									createEntityGroup(t);
+								}
 							}
+							
 						} else {
 							createEntity(t.token);	
 						}
@@ -191,6 +272,21 @@ public class Driver {
 				case "JJ":
 				case "JJR":
 				case "JJS":
+					if (linkingFlag) {
+						linkingFlag = false;
+						if (dkEntities.size () > 0) {
+							dkEntities.get(dkEntities.size() - 1).addAttribute(t.token);
+						} else {
+							cacheEntityAttribute(t.token);
+						}
+					} else if (andFlag && precedingAnd.equals("attribute")) {
+						andFlag = false;
+						if (dkEntities.size () > 0) {
+							dkEntities.get(dkEntities.size() - 1).addAttribute(t.token);
+						} else {
+							cacheEntityAttribute(t.token);
+						}
+					}
 					cacheEntityAttribute(t.token);
 					break;
 				case "RB":
@@ -210,17 +306,18 @@ public class Driver {
 					} else if (MiscUtil.toHave(t.token)){
 						havingFlag = true;
 					} else {
-						if (dkEntities.size() > 0) {
-							
+						if (dkEntities.size() > 0) {				
 							createEvent(t);
 							if (andFlag) {
 								andFlag = false;
 								if (dkEvents.size() > 1) {
 									dkEvents.get(dkEvents.size() - 1).actor = dkEvents.get(dkEvents.size() - 2).actor;
 								}
+							} else if (connectedPhrases) {
+								connectedPhrases = false;
+								dkEvents.get(dkEvents.size() - 2).andThenWhat = dkEvents.get(dkEvents.size() - 1);
 							}
 							eventFlag = true;
-							
 						}
 						if(linkingFlag){
 							linkingFlag = false;
@@ -256,12 +353,100 @@ public class Driver {
 		eventAttributes.clear();
 	}
 	
+	public static String getCurrentPhraseType() {
+		String type = "";
+		if (dkPhrases.size() > 0) {
+			type = dkPhrases.get(dkPhrases.size() - 1).type;
+		}
+		return type;
+	}
+	
+	public static void continueCurrentPhrase(DKToken t) {
+		dkPhrases.get(dkPhrases.size() - 1).addToPhrase(t);
+	}
+	
+	public static void startPhrase(String type, DKToken t) {
+		DKPhrase p = new DKPhrase(type, t);
+		if (!dkPhrases.isEmpty()) {
+			dkPhrases.get(dkPhrases.size() - 1).children.add(p);
+		}
+		dkPhrases.add(p);
+	}
+	
+	public static void endPhrase() {
+		if (!dkPhrases.isEmpty()) {
+			dkPhrases.remove(dkPhrases.size() - 1);
+		}
+	}
+	
+	public static String getPrevTag(DKToken currentToken) {
+		String lastTag = "";
+		if (currentToken.index > 0) {
+			lastTag = dkTokens.get(currentToken.index - 1).tag;
+		}
+		return lastTag;
+	}
+	
+	public static String getNextTag(int index, String search) {
+		if (index + 1 < dkTokens.size() && search.indexOf(dkTokens.get(index + 1).tag) != -1) {
+			return dkTokens.get(index + 1).tag;
+		}
+		return "";
+	}
+	
+	public static String findForwardTag(int index, String search) {
+		String tag = "";
+		DKToken [] tokens = null;
+		tokens = dkTokens.toArray(tokens);
+		for(int i = index + 1; i < tokens.length ; i++) {
+			if (search.indexOf(tokens[i].tag) != -1) {
+				tag = tokens[i].tag;
+				break;
+			}
+		}
+		return tag;
+	}
+	
+	public static int findNextIndex(int index, String search){
+		int nextIndex;
+		DKToken [] tokens = new DKToken [dkTokens.size()];
+		dkTokens.toArray(tokens);
+		nextIndex = tokens.length;
+		for(int i = index + 1; i < tokens.length ; i++) {
+			if ((tokens[i].tag).indexOf(search) != -1) {
+				nextIndex = i;
+				break;
+			}
+		}
+		return nextIndex;
+	}
+	
+	public static int comesFirst(int index, String s1, String s2) {
+		int i;
+		DKToken [] tokens = new DKToken[dkTokens.size()];
+		dkTokens.toArray(tokens);
+		for (i = index; i < tokens.length; i++) {
+			if ((tokens[i].tag).indexOf(s1) != -1) {
+				return 1;
+			} else if ((tokens[i].tag).indexOf(s2) != -1) {
+				return -1;
+			}
+		}
+		return 0;
+	}
+	
+	public static void createEntityGroup(DKToken t) {
+		dkEntities.get(dkEntities.size() - 1).members.add(createStandAloneEntity(t.token));
+	}
+	
 	public static void cacheEntityAttribute(String attribute){
 		entityAttributes.add(attribute);
 	}
 	public static void cacheEventAttribute(String attribute){
 		eventAttributes.add(attribute);
 	}
+	
+	
 	public static String readFile(String filePath) throws IOException{
 		BufferedReader br = new BufferedReader(new FileReader(filePath));
 		StringBuilder sb; 

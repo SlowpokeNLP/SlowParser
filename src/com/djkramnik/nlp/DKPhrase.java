@@ -12,7 +12,17 @@ public class DKPhrase {
 	
 	public DKPhrase(String type, DKToken token, ArrayList<DKPhrase> children) {
 		this.type = type;
-		this.tokens.add(token); 
-		this.children.addAll(children);
+		this.tokens.add(token);
+		if (children != null) {
+			this.children.addAll(children);
+		}
 	}
-}
+	
+	public void addToPhrase(DKToken t) {
+		this.tokens.add(t);
+	}
+	
+	public String toString() {
+		return this.tokens.get(0).token + ":" + this.type + "_" + this.tokens.size();
+	}
+} 

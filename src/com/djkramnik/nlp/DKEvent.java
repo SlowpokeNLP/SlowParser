@@ -11,7 +11,7 @@ public class DKEvent {
 	public String identifier = null; 
 	public DKEntity actor = null; 
 	public DKEntity actedOn = null;
-	
+	public DKEvent andThenWhat = null;
 	
 	public DKEvent (DKToken token, DKEntity actor) {
 		this.token = token;
@@ -38,6 +38,6 @@ public class DKEvent {
 			p = prepPhrases.get(0);
 			s += " " + MiscUtil.prepositions.get(p.preposition) + "? " + p.toString();
 		}
-		return s;
+		return s + (andThenWhat != null ? " AND THEN " : "");
 	}
 }
